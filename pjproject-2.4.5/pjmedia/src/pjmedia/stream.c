@@ -1153,6 +1153,39 @@ static void rebuffer(pjmedia_stream *stream,
 /**
  * put_frame_imp()
  */
+
+#define RTP_ENCRYPT 1
+#if RTP_ENCRYPT
+META_DATA_INFO_TT en_text_t = {0};
+META_DATA_INFO_TT en_cipher_t = {0};
+
+META_DATA_INFO_TT de_cipher_t = {0};
+META_DATA_INFO_TT de_text_t = {0};
+
+PTR_ENCRYPT ptr_encrypt;
+PTR_ENCRYPT ptr_decrypt;
+
+
+void CRYPTO_AES_encrypt_decrypt_register(PTR_ENCRYPT encrypt_temp,PTR_ENCRYPT decrypt_temp)
+{	
+	 printf("\n CRYPTO_AES_encrypt_rtp OK1  \n");
+	 ptr_encrypt= encrypt_temp;
+	 ptr_decrypt= decrypt_temp;
+	 printf("\n CRYPTO_AES_encrypt_rtp OK2  \n");
+}
+
+void printfkey(char* temp,int len)
+{
+	printf("\n");
+	int i =0;
+	for(i=0;i < len; i++)
+	{
+		printf("%2x ",temp[i]&0xff);	
+	}
+	printf("\n");
+}
+#endif 
+
 static pj_status_t put_frame_imp( pjmedia_port *port,
 				  pjmedia_frame *frame )
 {
@@ -1384,6 +1417,24 @@ static pj_status_t put_frame_imp( pjmedia_port *port,
     stream->is_streaming = PJ_TRUE;
 
     /* Send the RTP packet to the transport. */
+
+#if RTP_ENCRYPT
+	printf("\n old data:~~~~\n");
+	printfkey(frame_out.buf,frame_out.size);
+	en_text_t.addr = frame_out.buf;
+	en_text_t.len = frame_out.size;
+
+	unsigned char cipher[1024] = {0};
+	en_cipher_t.len = 0;
+	en_cipher_t.addr = &cipher[0];
+	ptr_encrypt(&en_text_t,&en_cipher_t);
+	memcpy(frame_out.buf,en_cipher_t.addr,frame_out.size);
+	printf("\n cipher_t data:~~~~\n");
+	printfkey(frame_out.buf,frame_out.size);	
+#endif 
+	
+
+
     status = pjmedia_transport_send_rtp(stream->transport, channel->out_pkt,
                                         frame_out.size +
 					    sizeof(pjmedia_rtp_hdr));
@@ -1616,6 +1667,8 @@ static void handle_incoming_dtmf( pjmedia_stream *stream,
  * This callback is called by stream transport on receipt of packets
  * in the RTP socket.
  */
+
+
 static void on_rx_rtp( void *data,
 		       void *pkt,
                        pj_ssize_t bytes_read)
@@ -1630,6 +1683,8 @@ static void on_rx_rtp( void *data,
     pj_status_t status;
     pj_bool_t pkt_discarded = PJ_FALSE;
 
+	
+	
     /* Check for errors */
     if (bytes_read < 0) {
 	status = (pj_status_t)-bytes_read;
@@ -1743,6 +1798,26 @@ static void on_rx_rtp( void *data,
 	ts.u64 = pj_ntohl(hdr->ts);
 
 	/* Parse the payload. */
+
+#if RTP_ENCRYPT
+		printf("\n payload:~~~~\n");
+		printfkey(payload,payloadlen);
+		de_cipher_t.addr = payload;
+		de_cipher_t.len = payloadlen;
+	
+		unsigned char de_text[1024] = {0};
+		de_text_t.len = 0;
+		de_text_t.addr = &de_text[0];
+
+		ptr_decrypt(&de_cipher_t,&de_text_t);
+		memcpy(payload,de_text_t.addr,de_text_t.len);
+		
+		printf("\n de_text_t data:~~~~\n");
+		printfkey(de_text_t.addr,de_text_t.len);	
+#endif 
+
+
+	
 	status = pjmedia_codec_parse(stream->codec, (void*)payload,
 				     payloadlen, &ts, &count, frames);
 	if (status != PJ_SUCCESS) {

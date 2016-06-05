@@ -433,6 +433,15 @@ pjmedia_stream_send_rtcp_bye( pjmedia_stream *stream );
  * @}
  */
 
+typedef struct META_DATA_INFO_ss
+{
+	int len;
+	void *addr;
+}META_DATA_INFO_TT;
+
+typedef void (*PTR_ENCRYPT)(META_DATA_INFO_TT *p1,META_DATA_INFO_TT *p2);
+	
+void CRYPTO_AES_encrypt_decrypt_register(PTR_ENCRYPT encrypt_temp,PTR_ENCRYPT decrypt_temp);
 PJ_END_DECL
 
 
